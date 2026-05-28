@@ -28,18 +28,20 @@ jobs:
         working-directory: command-center
         run: npm install
 
-      # Start the app in background
+      # Start the app in background and log output
       - name: Start application
         working-directory: command-center
         run: |
-          nohup npm start &
-          sleep 5
+          nohup npm start > server.log 2>&1 &
+          echo "Server starting..."
+          sleep 15
+          tail -n 20 server.log
 
-      # Wait for the app to be reachable (port 3005)
+      # Wait for the app to be reachable (health check on port 3005)
       - name: Wait for app to be ready
         run: |
           for i in {1..40}; do
-            if curl -s http://localhost:3005 > /dev/null; then
+            if curl -s http://localhost:3005/api/healthz | grep -q "ok"; then
               echo "App is up!"
               exit 0
             fi
@@ -47,6 +49,8 @@ jobs:
             sleep 2
           done
           echo "App did not start in time"
+          echo "--- Server log ---"
+          cat command-center/server.log
           exit 1
 
       # Install Playwright dependencies
