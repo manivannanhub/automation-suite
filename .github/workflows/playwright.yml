@@ -1,4 +1,5 @@
-﻿name: Playwright E2E Tests
+﻿$content = @"
+name: Playwright E2E Tests
 
 on:
   push:
@@ -13,31 +14,30 @@ jobs:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
-      # Checkout repo
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Install Node
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 24
 
-      # Install dependencies for the app
       - name: Install app dependencies
         working-directory: command-center
         run: npm install
 
-      # Start the app in background and log output
+      - name: Build frontend
+        working-directory: command-center
+        run: npm run build:app
+
       - name: Start application
         working-directory: command-center
         run: |
           nohup npm start > server.log 2>&1 &
           echo "Server starting..."
-          sleep 15
+          sleep 10
           tail -n 20 server.log
 
-      # Wait for the app to be reachable (health check on port 3005)
       - name: Wait for app to be ready
         run: |
           for i in {1..40}; do
@@ -53,25 +53,34 @@ jobs:
           cat command-center/server.log
           exit 1
 
-      # Install Playwright dependencies
       - name: Install Playwright dependencies
         working-directory: playwright-tests
         run: npm install
 
-      # Install Playwright browsers
       - name: Install Playwright browsers
         working-directory: playwright-tests
-        run: npx playwright install --with-deps
+        run: npx playwright install --with-deps chromium
 
-      # Run Playwright tests
       - name: Run Playwright tests
         working-directory: playwright-tests
         run: npx playwright test --reporter=html
+        env:
+          CI: true
 
-      # Upload Playwright report
       - name: Upload Playwright HTML report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
           path: playwright-tests/playwright-report
           retention-days: 7
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: playwright-tests/test-results
+          retention-days: 7
+"@
+$content | Set-Content -Path ".github\workflows\playwright.yml" -Encoding UTF8
