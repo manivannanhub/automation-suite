@@ -20,18 +20,24 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: |
+            command-center/package-lock.json
+            playwright-tests/package-lock.json
 
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-chromium-${{ hashFiles('playwright-tests/package-lock.json') }}
+          key: ${{ runner.os }}-playwright-${{ hashFiles('playwright-tests/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
 
       - name: Install app dependencies
         working-directory: command-center
-        run: npm install
+        run: npm ci
 
       - name: Build frontend
         working-directory: command-center
@@ -62,17 +68,11 @@ jobs:
 
       - name: Install Playwright dependencies
         working-directory: playwright-tests
-        run: npm install
+        run: npm ci
 
       - name: Install Playwright browsers
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
         working-directory: playwright-tests
-        run: npx playwright install --with-deps chromium
-
-      - name: Install Playwright system deps only
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
-        working-directory: playwright-tests
-        run: npx playwright install-deps chromium
+        run: npx playwright install chromium
 
       - name: Run Playwright tests
         working-directory: playwright-tests
