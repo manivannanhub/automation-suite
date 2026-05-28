@@ -9,6 +9,8 @@ on:
 jobs:
   e2e-tests:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
       # Checkout repo
@@ -19,7 +21,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       # Install dependencies for the app
       - name: Install app dependencies
@@ -33,7 +35,7 @@ jobs:
           nohup npm start &
           sleep 5
 
-      # Wait for the app to be reachable (updated to port 3005)
+      # Wait for the app to be reachable (port 3005)
       - name: Wait for app to be ready
         run: |
           for i in {1..40}; do
