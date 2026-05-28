@@ -1,0 +1,91 @@
+You are an expert full‑stack engineer. Build a complete, user‑friendly multi‑feature web application that I can run locally for Playwright testing.
+
+GENERAL REQUIREMENTS:
+- Use Node.js + Express for backend
+- Use HTML + CSS + JavaScript (no frameworks) for frontend
+- Provide full starter files:
+  • package.json
+  • server.js
+  • public/index.html
+  • public/style.css
+  • public/app.js
+  • Separate folders for each module (auth, todo, contact, notes, products)
+- Include an npm start script so I can run the app easily
+- App must run on http://localhost:3005
+- UI must be clean, simple, and beginner‑friendly
+
+ADD WINDOWS STARTER FILE:
+- Create a batch file named start-app.bat
+- The batch file must:
+  • Run "npm install" if node_modules is missing
+  • Run "npm start"
+  • Open http://localhost:3005 in the default browser
+
+FEATURE MODULES:
+
+1. AUTH MODULE
+- Register page (name, email, password)
+- Login page (email, password)
+- Dashboard page with welcome message
+- Logout button
+- Form validation with clear error messages
+- Store users in an in‑memory array
+- API routes:
+  • POST /auth/register
+  • POST /auth/login
+  • GET /dashboard
+  • POST /auth/logout
+
+2. TODO MODULE
+- Add task
+- Edit task
+- Delete task
+- Mark complete
+- Simple UI with list + buttons
+
+3. CONTACT FORM MODULE
+- Name, email, message fields
+- Validation errors
+- Success banner after submit
+
+4. NOTES MODULE
+- Create, edit, delete notes
+- Save notes in localStorage
+- Simple card layout
+
+5. PRODUCT MODULE
+- List products
+- Search bar
+- Sort by name/price
+- Simple table or card layout
+
+LOCAL INSTALL REQUIREMENTS:
+- Provide full folder structure
+- Provide all code files
+- Provide exact commands:
+  • npm install
+  • npm start
+- Ensure the server listens on port 3005
+- Ensure start-app.bat works on Windows
+
+PLAYWRIGHT REQUIREMENTS:
+- Generate Playwright tests in TypeScript
+- Use Page Object Model
+- Include tests for:
+  • Register
+  • Login
+  • Dashboard access
+  • Logout
+  • Todo CRUD
+  • Contact form validation
+  • Notes CRUD
+  • Product search + sort
+  • Negative tests (invalid email, missing fields)
+
+OUTPUT FORMAT:
+1. Folder structure
+2. Backend code
+3. Frontend files
+4. start-app.bat file
+5. Playwright tests
+6. Instructions to install and run the app
