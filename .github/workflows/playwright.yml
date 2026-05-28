@@ -1,5 +1,4 @@
-﻿$content = @"
-name: Playwright E2E Tests
+﻿name: Playwright E2E Tests
 
 on:
   push:
@@ -34,22 +33,22 @@ jobs:
         working-directory: command-center
         run: |
           nohup npm start > server.log 2>&1 &
-          echo "Server starting..."
+          echo 'Server starting...'
           sleep 10
           tail -n 20 server.log
 
       - name: Wait for app to be ready
         run: |
           for i in {1..40}; do
-            if curl -s http://localhost:3005/api/healthz | grep -q "ok"; then
-              echo "App is up!"
+            if curl -s http://localhost:3005/api/healthz | grep -q 'ok'; then
+              echo 'App is up!'
               exit 0
             fi
-            echo "Waiting for app on port 3005..."
+            echo 'Waiting for app on port 3005...'
             sleep 2
           done
-          echo "App did not start in time"
-          echo "--- Server log ---"
+          echo 'App did not start in time'
+          echo '--- Server log ---'
           cat command-center/server.log
           exit 1
 
@@ -82,5 +81,3 @@ jobs:
           name: test-results
           path: playwright-tests/test-results
           retention-days: 7
-"@
-$content | Set-Content -Path ".github\workflows\playwright.yml" -Encoding UTF8
