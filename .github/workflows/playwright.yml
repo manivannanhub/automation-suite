@@ -33,15 +33,15 @@ jobs:
           nohup npm start &
           sleep 5
 
-      # Wait for the app to be reachable
+      # Wait for the app to be reachable (updated to port 3005)
       - name: Wait for app to be ready
         run: |
-          for i in {1..30}; do
-            if curl -s http://localhost:3000 > /dev/null; then
+          for i in {1..40}; do
+            if curl -s http://localhost:3005 > /dev/null; then
               echo "App is up!"
               exit 0
             fi
-            echo "Waiting for app..."
+            echo "Waiting for app on port 3005..."
             sleep 2
           done
           echo "App did not start in time"
