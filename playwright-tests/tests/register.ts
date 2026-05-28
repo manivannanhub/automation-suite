@@ -1,7 +1,13 @@
 import { test, expect, Page } from '@playwright/test';
 
+test('register page loads', async ({ page }) => {
+  await page.goto('http://localhost:3005/register');
+  await expect(page.locator('text=Create an account')).toBeVisible();
+});
+
 // ── Helper ───────────────────────────────────────────────────
 const BASE_URL = 'http://localhost:3005';
+
 
 async function goToRegister(page: Page) {
   await page.goto(`${BASE_URL}/register`);
