@@ -5,13 +5,14 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  schedule:                          # ✅ ADDED: nightly run at 2am UTC
+    - cron: '0 2 * * *'
 
 jobs:
   e2e-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    # ❌ REMOVED: FORCE_JAVASCRIPT_ACTIONS_TO_NODE24 — unnecessary with setup-node@v4
 
     steps:
       - name: Checkout repository
@@ -48,8 +49,7 @@ jobs:
         run: |
           nohup npm start > server.log 2>&1 &
           echo 'Server starting...'
-          sleep 10
-          tail -n 20 server.log
+          # ❌ REMOVED: sleep 10 — the wait step below handles this reliably
 
       - name: Wait for app to be ready
         run: |
@@ -58,7 +58,7 @@ jobs:
               echo 'App is up!'
               exit 0
             fi
-            echo 'Waiting for app on port 3005...'
+            echo "Attempt $i/40 — waiting for app on port 3005..."
             sleep 2
           done
           echo 'App did not start in time'
@@ -72,11 +72,13 @@ jobs:
 
       - name: Install Playwright browsers
         working-directory: playwright-tests
-        run: npx playwright install chromium
+        # ✅ FIXED: added --with-deps (installs OS libs) + all 3 browsers
+        run: npx playwright install --with-deps chromium firefox webkit
 
       - name: Run Playwright tests
         working-directory: playwright-tests
-        run: npx playwright test --reporter=html
+        # ✅ FIXED: added 'line' reporter for terminal output + GitHub annotations
+        run: npx playwright test --reporter=html,line
         env:
           CI: true
 
@@ -95,3 +97,12 @@ jobs:
           name: test-results
           path: playwright-tests/test-results
           retention-days: 7
+
+      # ✅ ADDED: upload server log when app fails to start
+      - name: Upload server log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-log
+          path: command-center/server.log
+          retention-days: 3
