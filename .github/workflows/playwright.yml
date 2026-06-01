@@ -5,19 +5,21 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
-  schedule:                          # ✅ ADDED: nightly run at 2am UTC
+  schedule:
+    # Nightly run at 2am UTC
     - cron: '0 2 * * *'
 
 jobs:
   e2e-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    # ❌ REMOVED: FORCE_JAVASCRIPT_ACTIONS_TO_NODE24 — unnecessary with setup-node@v4
 
     steps:
+      # ── 1. Checkout code ──────────────────────────────────────
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # ── 2. Setup Node.js ──────────────────────────────────────
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -27,6 +29,8 @@ jobs:
             command-center/package-lock.json
             playwright-js/package-lock.json
 
+      # ── 3. Cache Playwright browsers ──────────────────────────
+      # Saves ~1 min on repeat runs by caching downloaded browsers
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         id: playwright-cache
@@ -36,52 +40,107 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-playwright-
 
+      # ── 4. Install app dependencies ───────────────────────────
       - name: Install app dependencies
         working-directory: command-center
         run: npm ci
 
+      # ── 5. Build the frontend ─────────────────────────────────
       - name: Build frontend
         working-directory: command-center
-        run: npm run build:app
+        run: npm run build
 
+      # ── 6. Start the application in background ────────────────
+      # nohup keeps it running after the step ends
+      # server.log captures all output for debugging
       - name: Start application
         working-directory: command-center
-        run: |
-          nohup npm start > server.log 2>&1 &
-          echo 'Server starting...'
-          # ❌ REMOVED: sleep 10 — the wait step below handles this reliably
+        run: nohup npm start > server.log 2>&1 &
+        env:
+          NODE_ENV: production
+          PORT: 3005
+          # Add your secrets here — set them in GitHub repo Settings > Secrets
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
 
+      # ── 7. Wait for app to be ready ───────────────────────────
+      # Polls every 2 seconds up to 80 seconds (40 attempts)
+      # Falls back to checking root URL if /api/healthz not available
       - name: Wait for app to be ready
         run: |
+          echo "Waiting for app to start on port 3005..."
           for i in {1..40}; do
+            # Try healthz endpoint first
             if curl -s http://localhost:3005/api/healthz | grep -q 'ok'; then
-              echo 'App is up!'
+              echo "✅ App is up via /api/healthz!"
               exit 0
             fi
-            echo "Attempt $i/40 — waiting for app on port 3005..."
+            # Fallback: check if any 200/301/302 response on root
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3005 || echo "000")
+            if [ "$STATUS" = "200" ] || [ "$STATUS" = "301" ] || [ "$STATUS" = "302" ]; then
+              echo "✅ App is up! HTTP status: $STATUS"
+              exit 0
+            fi
+            echo "Attempt $i/40 — HTTP $STATUS — retrying in 2s..."
             sleep 2
           done
-          echo 'App did not start in time'
-          echo '--- Server log ---'
+          echo "❌ App did not start in time after 80 seconds"
+          echo "--- Server log ---"
           cat command-center/server.log
           exit 1
 
+      # ── 8. Seed test user for login tests ─────────────────────
+      # Login tests need a user that already exists in the database.
+      # Signup tests create their own users, but login tests depend
+      # on this pre-seeded account: testuser@test.com / Password123
+      - name: Seed test user for login tests
+        run: |
+          echo "=== Registering test user ==="
+          RESPONSE=$(curl -s -X POST http://localhost:3005/api/auth/register \
+            -H "Content-Type: application/json" \
+            -d '{"name":"Test User","email":"testuser@test.com","password":"Password123"}')
+          echo "Register response: $RESPONSE"
+
+          echo "=== Verifying login works ==="
+          LOGIN=$(curl -s -X POST http://localhost:3005/api/auth/login \
+            -H "Content-Type: application/json" \
+            -d '{"email":"testuser@test.com","password":"Password123"}')
+          echo "Login response: $LOGIN"
+
+          # Fail fast if login doesn't work — no point running tests
+          if echo "$LOGIN" | grep -q 'token\|user'; then
+            echo "✅ Test user seeded and login verified successfully"
+          else
+            echo "❌ Could not verify test user login — check register response above"
+            echo "--- Server log ---"
+            cat command-center/server.log
+            exit 1
+          fi
+
+      # ── 9. Install Playwright dependencies ────────────────────
       - name: Install Playwright dependencies
         working-directory: playwright-js
         run: npm ci
 
+      # ── 10. Install Playwright browsers ───────────────────────
+      # --with-deps installs required OS libraries (fonts, codecs etc)
+      # Only installs chromium to keep CI fast — add firefox/webkit if needed
       - name: Install Playwright browsers
         working-directory: playwright-js
-        # ✅ FIXED: added --with-deps (installs OS libs) + all 3 browsers
-        run: npx playwright install --with-deps chromium firefox webkit
+        run: npx playwright install --with-deps chromium
 
+      # ── 11. Run Playwright tests ──────────────────────────────
+      # line reporter = clean terminal output
+      # html reporter = downloadable HTML report as artifact
       - name: Run Playwright tests
         working-directory: playwright-js
-        # ✅ FIXED: added 'line' reporter for terminal output + GitHub annotations
         run: npx playwright test --reporter=html,line
         env:
           CI: true
 
+      # ── 12. Upload HTML test report ───────────────────────────
+      # Download from GitHub Actions > Artifacts after the run
+      # Available for 7 days
       - name: Upload Playwright HTML report
         if: always()
         uses: actions/upload-artifact@v4
@@ -90,6 +149,8 @@ jobs:
           path: playwright-js/playwright-report
           retention-days: 7
 
+      # ── 13. Upload raw test results ───────────────────────────
+      # Contains screenshots, videos and traces of failed tests
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
@@ -98,7 +159,8 @@ jobs:
           path: playwright-js/test-results
           retention-days: 7
 
-      # ✅ ADDED: upload server log when app fails to start
+      # ── 14. Upload server log on failure ──────────────────────
+      # Only runs when something fails — helps debug app startup issues
       - name: Upload server log on failure
         if: failure()
         uses: actions/upload-artifact@v4
