@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": "node .cursor/hooks/session-context.js"
+      }
+    ],
+    "beforeShellExecution": [
+      {
+        "command": "node .cursor/hooks/guard-shell.js"
+      }
+    ],
+    "afterFileEdit": [
+      {
+        "command": "node .cursor/hooks/format-after-edit.js",
+        "matcher": "Write"
+      }
+    ],
+    "beforeReadFile": [
+      {
+        "command": "node .cursor/hooks/protect-reads.js",
+        "failClosed": true
+      }
+    ],
+    "preToolUse": [
+      {
+        "command": "node .cursor/hooks/block-generated.js",
+        "matcher": "Write|StrReplace"
+      }
+    ],
+    "postToolUse": [
+      {
+        "command": "node .cursor/hooks/suggest-test-run.js",
+        "matcher": "Write|StrReplace|Shell"
+      }
+    ],
+    "beforeSubmitPrompt": [
+      {
+        "command": "node .cursor/hooks/validate-prompt.js"
+      }
+    ],
+    "stop": [
+      {
+        "command": "node .cursor/hooks/stop-verify.js",
+        "loop_limit": 1
+      }
+    ]
+  }
+}
