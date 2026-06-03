@@ -28,8 +28,7 @@ playwright-js/
 │   ├── auth/
 │   │   ├── login.ui.spec.js
 │   │   ├── login.api.spec.js
-│   │   ├── register.ui.spec.js
-│   │   └── register.api.spec.js
+│   │   └── register.spec.js       # all signup techniques in one file
 │   ├── dashboard/
 │   ├── todos/
 │   └── products/
@@ -53,8 +52,9 @@ playwright-js/
 |------|----------|
 | `login.ui.spec.js` | Smoke, positive, negative, logout, access |
 | `login.api.spec.js` | `POST /api/auth/login` contract tests |
-| `register.ui.spec.js` | Smoke, positive, negative, boundary |
-| `register.api.spec.js` | `POST /api/auth/register` contract tests |
+| `register.spec.js` | Full signup suite (81 tests) — all techniques in one spec with per-test purpose comments |
+| `docs/REGISTER_TEST_PLAN.md` | 58-case test plan for `/register` |
+| `docs/REGISTER_QA_REPORT.md` | Planner → Healer agent report |
 
 Legacy monolithic `tests/legacy/login.spec.js` and `register.spec.js` were removed and replaced by these files.
 

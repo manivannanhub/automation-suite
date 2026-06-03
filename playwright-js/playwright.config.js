@@ -21,7 +21,7 @@ export default defineConfig({
   use: {
     baseURL: env.baseURL,
     headless: true,
-    trace: 'on-first-retry',
+    trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
   },

@@ -3,6 +3,11 @@ export const registerLocators = {
     signUp: { role: 'button', name: 'Sign Up' },
     signIn: { role: 'link', name: 'Sign in' },
   },
+  labels: {
+    name: 'Name',
+    email: 'Email',
+    password: 'Password',
+  },
   testIds: {
     name: 'input-name',
     email: 'input-email',
@@ -10,6 +15,10 @@ export const registerLocators = {
     submit: 'button-register',
     error: 'register-error',
     loginLink: 'link-login',
+  },
+  placeholders: {
+    name: 'John Doe',
+    email: 'you@example.com',
   },
   text: {
     heading: 'Create an account',
