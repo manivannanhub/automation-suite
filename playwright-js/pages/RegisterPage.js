@@ -74,9 +74,16 @@ export class RegisterPage {
     if (password !== null) await this.passwordInput().fill(password);
   }
 
-  /** Happy-path helper: fill, submit, assert dashboard (reduces spec repetition). */
+  /** Happy-path helper: fill, submit, wait for API + dashboard. */
   async registerExpectSuccess(name, email, password) {
-    await this.register(name, email, password);
+    await this.fillForm(name, email, password);
+    await expect(this.submitButton()).toBeEnabled();
+    const responsePromise = this.page.waitForResponse(
+      (r) => REGISTER_API.test(r.url()) && r.request().method() === 'POST',
+    );
+    await this.submitButton().click();
+    const response = await responsePromise;
+    expect(response.ok()).toBeTruthy();
     await this.expectOnDashboard();
   }
 
@@ -98,20 +105,14 @@ export class RegisterPage {
   }
 
   async submitWithEnterOnPassword() {
-    const apiResponse = this.page
-      .waitForResponse(
-        (r) => REGISTER_API.test(r.url()) && r.request().method() === 'POST',
-        { timeout: 10_000 },
-      )
-      .catch(() => null);
-
     await expect(this.passwordInput()).toBeFocused();
+    const responsePromise = this.page.waitForResponse(
+      (r) => REGISTER_API.test(r.url()) && r.request().method() === 'POST',
+    );
     await this.passwordInput().press('Enter');
-    const response = await apiResponse;
-
-    if (response?.ok()) {
-      await this.expectOnDashboard();
-    }
+    const response = await responsePromise;
+    expect(response.ok()).toBeTruthy();
+    await this.expectOnDashboard();
   }
 
   async expectFieldsRetainValues({ name, email, password }) {
@@ -131,39 +132,9 @@ export class RegisterPage {
     await this.submitButton().click();
   }
 
-  /**
-   * Submit and wait for register API / redirect / validation to settle.
-   * Headed runs are slower — avoids racing assertions or afterEach cleanup.
-   */
-  async submitAndSettle() {
-    const apiResponse = this.page
-      .waitForResponse(
-        (r) => REGISTER_API.test(r.url()) && r.request().method() === 'POST',
-        { timeout: 2_000 },
-      )
-      .catch(() => null);
-
-    await this.submit();
-    const response = await apiResponse;
-
-    if (response?.ok()) {
-      await this.page.waitForURL(/\/dashboard$/, { timeout: 15_000 });
-      await expect(
-        this.page.getByTestId(dashboardLocators.testIds.welcome),
-      ).toBeVisible({ timeout: 10_000 });
-      return;
-    }
-
-    if (response && !response.ok()) {
-      await expect(this.page.getByTestId(this.loc.testIds.error)).toBeVisible({
-        timeout: 10_000,
-      });
-    }
-  }
-
   async register(name, email, password) {
     await this.fillForm(name, email, password);
-    await this.submitAndSettle();
+    await this.submit();
   }
 
   async goToLogin() {

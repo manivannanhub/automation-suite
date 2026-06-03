@@ -21,6 +21,12 @@ import { env } from '../../config/env.js';
 configureRegisterSuite();
 
 const DEFAULT_PASSWORD = 'Password123';
+const SHORT_PASSWORD = '12345';
+const MIN_PASSWORD = 'abcdef';
+const LONG_PASSWORD_LENGTH = 128;
+/** Five space characters only — below minimum password length */
+const WHITESPACE_ONLY_PASSWORD = '     ';
+const SECRET_PASSWORD = 'SuperSecret99';
 const XSS_PAYLOAD = '<script>alert("xss")</script>';
 const SQLI_PAYLOAD = "' OR '1'='1";
 
@@ -129,7 +135,7 @@ test.describe('Register @auth', () => {
     }) => {
       const email = uniqueEmail('pos');
       trackEmail(email);
-      await registerPage.register('James Bond', email, DEFAULT_PASSWORD);
+      await registerPage.registerExpectSuccess('James Bond', email, DEFAULT_PASSWORD);
       await dashboardPage.expectWelcomeFor('James Bond');
     });
 
@@ -215,7 +221,7 @@ test.describe('Register @auth', () => {
     // Technique: Negative Testing.
     // Validates: Short passwords show length error and stay on register.
     test('[REG-NEG-04] password below minimum length', async ({ registerPage }) => {
-      await registerPage.register('Test', uniqueEmail('neg'), '12345');
+      await registerPage.register('Test', uniqueEmail('neg'), SHORT_PASSWORD);
       await registerPage.expectPasswordMinLength();
       await registerPage.expectStaysOnRegister();
     });
@@ -279,7 +285,7 @@ test.describe('Register @auth', () => {
     // Technique: Decision Table Testing.
     // Validates: Password length rule applies with otherwise valid inputs.
     test('[REG-DT-04] short password blocks signup', async ({ registerPage }) => {
-      await registerPage.register('User', uniqueEmail('dt'), '123');
+      await registerPage.register('User', uniqueEmail('dt'), '123'); // 3 chars — below min
       await registerPage.expectPasswordMinLength();
     });
 
@@ -370,11 +376,13 @@ test.describe('Register @auth', () => {
     // Purpose: Confirm inline errors clear after the user fixes input.
     // Technique: Error Message Validation.
     // Validates: Correcting email removes the invalid-email message.
-    test('[REG-ERR-03] error clears after fixing email', async ({ registerPage }) => {
+    test('[REG-ERR-03] error clears after fixing email', async ({ registerPage, trackEmail }) => {
       await registerPage.register('User', 'bad', DEFAULT_PASSWORD);
       await registerPage.expectInvalidEmail();
       await registerPage.emailInput().clear();
-      await registerPage.emailInput().fill(uniqueEmail('err-fix'));
+      const email = uniqueEmail('err-fix');
+      trackEmail(email);
+      await registerPage.emailInput().fill(email);
       await expect(
         registerPage.page.getByText(MESSAGES.register.invalidEmail),
       ).not.toBeVisible();
@@ -414,7 +422,7 @@ test.describe('Register @auth', () => {
     }) => {
       const email = uniqueEmail('bva');
       trackEmail(email);
-      await registerPage.registerExpectSuccess('Boundary', email, 'abcdefg');
+      await registerPage.registerExpectSuccess('Boundary', email, `${MIN_PASSWORD}g`);
     });
 
     // Purpose: Test minimum name length (1 character).
@@ -426,22 +434,20 @@ test.describe('Register @auth', () => {
     }) => {
       const email = uniqueEmail('bva');
       trackEmail(email);
-      await registerPage.registerExpectSuccess('A', email, 'Password123');
+      await registerPage.registerExpectSuccess('A', email, DEFAULT_PASSWORD);
     });
 
-    // Purpose: Stress-test a long email local-part without crashing.
+    // Purpose: Stress-test a long but valid email local-part.
     // Technique: Boundary Value Analysis.
-    // Validates: App handles long input safely (register or validate, no crash).
+    // Validates: A 64-character local-part still completes signup successfully.
     test('[REG-BVA-05] very long email handled safely', async ({
-      page,
       registerPage,
       trackEmail,
     }) => {
-      const longLocal = 'a'.repeat(64);
+      const longLocal = `${Date.now()}${'a'.repeat(48)}`.slice(0, 64);
       const email = `${longLocal}@example.com`;
       trackEmail(email);
-      await registerPage.register('User', email, 'Password123');
-      await expect(page).toHaveURL(/\/(dashboard|register)/);
+      await registerPage.registerExpectSuccess('User', email, DEFAULT_PASSWORD);
     });
 
     // Purpose: Test empty password boundary (0 characters).
@@ -464,7 +470,11 @@ test.describe('Register @auth', () => {
     }) => {
       const email = uniqueEmail('bva-long');
       trackEmail(email);
-      await registerPage.registerExpectSuccess('User', email, 'a'.repeat(128));
+      await registerPage.registerExpectSuccess(
+        'User',
+        email,
+        'a'.repeat(LONG_PASSWORD_LENGTH),
+      );
     });
   });
 
@@ -501,7 +511,7 @@ test.describe('Register @auth', () => {
     }) => {
       const email = uniqueEmail('ep');
       trackEmail(email);
-      await registerPage.registerExpectSuccess('EP', email, 'abcdef');
+      await registerPage.registerExpectSuccess('EP', email, MIN_PASSWORD);
     });
 
     // Purpose: Representative from invalid password class (length < 6).
@@ -544,14 +554,15 @@ test.describe('Register @auth', () => {
       await registerPage.expectInvalidEmail();
     });
 
-    // Purpose: Password partition of whitespace-only characters.
+    // Purpose: Password partition of whitespace-only characters (5 spaces).
     // Technique: Equivalence Partitioning.
-    // Validates: Short password partition (< 6 chars) is rejected.
+    // Validates: Whitespace-only password below min length is rejected.
     test('[REG-EP-08] whitespace-only password class → error', async ({
       registerPage,
     }) => {
-      await registerPage.register('EP', uniqueEmail('ep'), 'abc');
+      await registerPage.register('EP', uniqueEmail('ep'), WHITESPACE_ONLY_PASSWORD);
       await registerPage.expectPasswordMinLength();
+      await registerPage.expectStaysOnRegister();
     });
   });
 
@@ -571,8 +582,7 @@ test.describe('Register @auth', () => {
       });
       const email = uniqueEmail('sec-xss');
       trackEmail(email);
-      await registerPage.register(XSS_PAYLOAD, email, 'Password123');
-      await registerPage.expectOnDashboard();
+      await registerPage.registerExpectSuccess(XSS_PAYLOAD, email, DEFAULT_PASSWORD);
       expect(dialogFired).toBe(false);
     });
 
@@ -582,7 +592,8 @@ test.describe('Register @auth', () => {
     test('[REG-SEC-02] SQLi-style email rejected or stays safe', async ({
       registerPage,
     }) => {
-      await registerPage.register('User', SQLI_PAYLOAD, 'Password123');
+      await registerPage.register('User', SQLI_PAYLOAD, DEFAULT_PASSWORD);
+      await registerPage.expectInvalidEmail();
       await registerPage.expectStaysOnRegister();
     });
 
@@ -592,33 +603,38 @@ test.describe('Register @auth', () => {
     test('[REG-SEC-03] XSS string in email stays on register', async ({
       registerPage,
     }) => {
-      await registerPage.register('User', `${XSS_PAYLOAD}@test.com`, 'Password123');
+      await registerPage.register('User', `${XSS_PAYLOAD}@test.com`, DEFAULT_PASSWORD);
+      await registerPage.expectInvalidEmail();
       await registerPage.expectStaysOnRegister();
     });
 
     // Purpose: Handle accidental double-click on submit gracefully.
     // Technique: Basic Security Testing (abuse / double-submit).
-    // Validates: No duplicate crash; ends on dashboard or register.
+    // Validates: Double-click still completes a single successful registration.
     test('[REG-SEC-04] double-click submit handled gracefully', async ({
-      page,
       registerPage,
       trackEmail,
     }) => {
       const email = uniqueEmail('sec');
       trackEmail(email);
-      await registerPage.fillForm('Double', email, 'Password123');
+      await registerPage.fillForm('Double', email, DEFAULT_PASSWORD);
       await expect(registerPage.submitButton()).toBeEnabled();
+      const responsePromise = registerPage.page.waitForResponse(
+        (r) => r.url().includes('/api/auth/register') && r.request().method() === 'POST',
+      );
       await registerPage.submitButton().dblclick();
-      await expect(page).toHaveURL(/\/(dashboard|register)/, { timeout: 15_000 });
+      const response = await responsePromise;
+      expect(response.ok()).toBeTruthy();
+      await registerPage.expectOnDashboard();
     });
 
     // Purpose: Ensure credentials never appear in the browser URL.
     // Technique: Basic Security Testing (credential leakage).
     // Validates: Password is not appended to query string or path.
     test('[REG-SEC-05] password not leaked in URL', async ({ page, registerPage }) => {
-      await registerPage.fillForm('User', uniqueEmail('sec'), 'SecretPass99');
-      await registerPage.submit();
-      expect(page.url()).not.toContain('SecretPass99');
+      await registerPage.register('User', 'not-valid', SECRET_PASSWORD);
+      expect(page.url()).not.toContain(SECRET_PASSWORD);
+      await registerPage.expectStaysOnRegister();
     });
 
     // Purpose: Reject path-traversal-like strings in the name field.
@@ -630,15 +646,15 @@ test.describe('Register @auth', () => {
     }) => {
       const email = uniqueEmail('sec-path');
       trackEmail(email);
-      await registerPage.register('../../etc/passwd', email, 'Password123');
-      await registerPage.expectOnDashboard();
+      await registerPage.registerExpectSuccess('../../etc/passwd', email, DEFAULT_PASSWORD);
     });
 
     // Purpose: Reject null-byte patterns in email input.
     // Technique: Basic Security Testing (injection).
     // Validates: Null-byte email never reaches dashboard.
     test('[REG-SEC-07] null-byte email pattern rejected', async ({ registerPage }) => {
-      await registerPage.register('User', 'user%00@test.com', 'Password123');
+      await registerPage.register('User', 'user%00@test.com', DEFAULT_PASSWORD);
+      await registerPage.expectInvalidEmail();
       await registerPage.expectStaysOnRegister();
     });
   });
@@ -741,7 +757,8 @@ test.describe('Register @auth', () => {
       registerPage,
     }) => {
       const email = uniqueEmail('use');
-      await registerPage.register('Retain Me', email, '123');
+      await registerPage.register('Retain Me', email, SHORT_PASSWORD);
+      await registerPage.expectPasswordMinLength();
       await registerPage.expectFieldsRetainValues({
         name: 'Retain Me',
         email,
@@ -816,7 +833,12 @@ test.describe('Register @auth', () => {
     test('[REG-API-05] duplicate email returns 409', async ({ request, trackEmail }) => {
       const email = uniqueEmail('api-dup');
       trackEmail(email);
-      await registerUser(request, { name: 'First', email, password: DEFAULT_PASSWORD });
+      const first = await registerUser(request, {
+        name: 'First',
+        email,
+        password: DEFAULT_PASSWORD,
+      });
+      expect(first.status()).toBe(201);
       const res = await registerUser(request, {
         name: 'Second',
         email,
@@ -886,12 +908,58 @@ test.describe('Register @auth', () => {
       const res = await registerUser(request, {
         name: 'Secret',
         email,
-        password: 'SuperSecret99',
+        password: SECRET_PASSWORD,
       });
-      const text = await res.text();
-      expect(text).not.toContain('SuperSecret99');
-      const body = await res.json();
+      expect(res.status()).toBe(201);
+      const body = await expectAuthSuccessBody(res, 'register');
+      expect(JSON.stringify(body)).not.toContain(SECRET_PASSWORD);
       expect(body.user).not.toHaveProperty('password');
+    });
+
+    // Purpose: Reject payloads missing the email field.
+    // Technique: API Testing.
+    // Validates: Server returns 400 when email is omitted.
+    test('[REG-API-10] missing email returns 400', async ({ request }) => {
+      const res = await registerUser(request, {
+        name: 'User',
+        password: DEFAULT_PASSWORD,
+      });
+      await expectErrorBody(res, [400]);
+    });
+
+    // Purpose: Reject payloads missing the password field.
+    // Technique: API Testing.
+    // Validates: Server returns 400 when password is omitted.
+    test('[REG-API-11] missing password returns 400', async ({ request }) => {
+      const res = await registerUser(request, {
+        name: 'User',
+        email: uniqueEmail('api'),
+      });
+      await expectErrorBody(res, [400]);
+    });
+
+    // Purpose: Reject whitespace-only name after server trim.
+    // Technique: API Testing.
+    // Validates: Trimmed-empty name returns 400.
+    test('[REG-API-12] whitespace-only name returns 400', async ({ request }) => {
+      const res = await registerUser(request, {
+        name: '   ',
+        email: uniqueEmail('api'),
+        password: DEFAULT_PASSWORD,
+      });
+      await expectErrorBody(res, [400]);
+    });
+
+    // Purpose: Reject whitespace-only password below minimum length via API.
+    // Technique: API Testing.
+    // Validates: Short whitespace password returns 400.
+    test('[REG-API-13] whitespace-only password returns 400', async ({ request }) => {
+      const res = await registerUser(request, {
+        name: 'User',
+        email: uniqueEmail('api'),
+        password: WHITESPACE_ONLY_PASSWORD,
+      });
+      await expectErrorBody(res, [400]);
     });
   });
 
@@ -908,7 +976,7 @@ test.describe('Register @auth', () => {
       const email = uniqueEmail('int');
       trackEmail(email);
       await registerPage.goto();
-      await registerPage.register('Integration User', email, DEFAULT_PASSWORD);
+      await registerPage.registerExpectSuccess('Integration User', email, DEFAULT_PASSWORD);
       await dashboardPage.expectWelcomeFor('Integration User');
     });
 
@@ -949,11 +1017,12 @@ test.describe('Register @auth', () => {
       await registerPage.goto();
       await registerPage.register('Second', email, DEFAULT_PASSWORD);
       await registerPage.expectDuplicateEmailError();
+      await registerPage.expectStaysOnRegister();
     });
 
     // Purpose: Handle revisiting /register while already authenticated.
     // Technique: Integration Testing.
-    // Validates: App redirects or shows register without crashing.
+    // Validates: No crash when a logged-in user opens /register (app keeps session).
     test('[REG-INT-04] logged-in user visiting register', async ({
       page,
       registerPage,
