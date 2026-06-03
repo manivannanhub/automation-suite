@@ -1,0 +1,67 @@
+- generic [ref=e2]:
+  - generic [ref=e21]:
+    - complementary [ref=e22]:
+      - heading "Hub" [level=1] [ref=e24]
+      - navigation [ref=e25]:
+        - link "Dashboard" [ref=e26] [cursor=pointer]:
+          - /url: /dashboard
+          - generic [ref=e27]:
+            - img [ref=e28]
+            - text: Dashboard
+        - link "Todos" [ref=e33] [cursor=pointer]:
+          - /url: /todos
+          - generic [ref=e34]:
+            - img [ref=e35]
+            - text: Todos
+        - link "Notes" [ref=e38] [cursor=pointer]:
+          - /url: /notes
+          - generic [ref=e39]:
+            - img [ref=e40]
+            - text: Notes
+        - link "Contact" [ref=e43] [cursor=pointer]:
+          - /url: /contact
+          - generic [ref=e44]:
+            - img [ref=e45]
+            - text: Contact
+        - link "Products" [ref=e48] [cursor=pointer]:
+          - /url: /products
+          - generic [ref=e49]:
+            - img [ref=e50]
+            - text: Products
+      - generic [ref=e54]:
+        - generic [ref=e55]:
+          - generic [ref=e56]: Test User
+          - generic [ref=e57]: testuser@test.com
+        - button "Logout" [ref=e58]:
+          - img
+          - text: Logout
+    - main [ref=e59]:
+      - generic [ref=e62]:
+        - generic [ref=e63]:
+          - heading "Welcome back, Test User" [level=1] [ref=e64]
+          - paragraph [ref=e65]: Here is your summary for today. Let's get things done.
+        - generic [ref=e66]:
+          - generic [ref=e67]:
+            - generic [ref=e68]:
+              - generic [ref=e69]: Total Tasks
+              - img [ref=e70]
+            - generic [ref=e74]: "16"
+          - generic [ref=e75]:
+            - generic [ref=e76]:
+              - generic [ref=e77]: Completed
+              - img [ref=e78]
+            - generic [ref=e82]: "0"
+          - generic [ref=e83]:
+            - generic [ref=e84]:
+              - generic [ref=e85]: Pending
+              - img [ref=e86]
+            - generic [ref=e89]: "16"
+        - generic [ref=e90]:
+          - generic [ref=e92]: Quick Add Todo
+          - generic [ref=e94]:
+            - textbox "What needs to be done?" [ref=e95]
+            - button "Add" [disabled]:
+              - img
+              - text: Add
+  - region "Notifications (F8)":
+    - list

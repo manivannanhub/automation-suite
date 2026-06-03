@@ -1,8 +1,13 @@
 
-# Playwright
+# Dependencies
 node_modules/
-/test-results/
-/playwright-report/
-/blob-report/
-/playwright/.cache/
-/playwright/.auth/
+
+# Playwright outputs (reports folder is the canonical output location)
+reports/test-results/
+reports/html/
+reports/screenshots/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+playwright/.auth/

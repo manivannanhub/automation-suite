@@ -128,6 +128,22 @@ app.get("/api/healthz", (_req, res) => {
   res.json({ status: "ok" });
 });
 
+/** Test-only: remove user (and their todos) by email. Used by Playwright cleanup. */
+app.post("/api/test/cleanup", (req, res) => {
+  const email =
+    typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+  if (!email) {
+    res.status(400).json({ error: "email is required" });
+    return;
+  }
+  const user = db.users.find((u) => u.email === email);
+  if (user) {
+    db.users = db.users.filter((u) => u.id !== user.id);
+    db.todos = db.todos.filter((t) => t.userId !== user.id);
+  }
+  res.json({ ok: true, deleted: Boolean(user) });
+});
+
 app.post("/api/auth/register", (req, res) => {
   const parsed = registerSchema.safeParse(req.body);
   if (!parsed.success) {

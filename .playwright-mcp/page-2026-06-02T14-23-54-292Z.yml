@@ -1,0 +1,23 @@
+- generic [ref=e2]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]: Welcome back
+      - generic [ref=e7]: Enter your credentials to access your command center
+    - generic [ref=e9]:
+      - generic [ref=e10]:
+        - text: Email
+        - textbox "Email" [active] [ref=e11]:
+          - /placeholder: you@example.com
+        - paragraph [ref=e18]: Invalid email
+      - generic [ref=e12]:
+        - text: Password
+        - textbox "Password" [ref=e13]:
+          - /placeholder: ••••••••
+        - paragraph [ref=e19]: Password is required
+      - button "Sign In" [ref=e14]
+    - generic [ref=e16]:
+      - text: Don't have an account?
+      - link "Sign up" [ref=e17] [cursor=pointer]:
+        - /url: /register
+  - region "Notifications (F8)":
+    - list

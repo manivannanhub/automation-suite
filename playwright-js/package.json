@@ -1,15 +1,22 @@
 {
-  "name": "playwright",
+  "name": "playwright-js",
   "version": "1.0.0",
-  "main": "index.js",
-  "scripts": {},
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
+  "description": "Command Center functional E2E tests (POM + fixtures)",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "test:auth": "playwright test tests/auth",
+    "test:login": "playwright test tests/auth/login",
+    "test:register": "playwright test tests/auth/register",
+    "test:todos": "playwright test tests/todos",
+    "test:dashboard": "playwright test tests/dashboard",
+    "test:products": "playwright test tests/products",
+    "report": "playwright show-report reports/html"
+  },
   "devDependencies": {
     "@playwright/test": "^1.60.0",
     "@types/node": "^25.9.1"
-  },
-  "type": "module"
+  }
 }
