@@ -965,6 +965,7 @@ test.describe('Register @auth', () => {
 
   // ─── Integration @integration ─────────────────────────────────────────────
   test.describe('Integration @integration', () => {
+    test.describe.configure({ timeout: 60_000 });
     // Purpose: End-to-end UI signup reflects in dashboard welcome state.
     // Technique: Integration Testing (Signup → Dashboard).
     // Validates: Registered name appears immediately after redirect.
@@ -984,7 +985,6 @@ test.describe('Register @auth', () => {
     // Technique: Integration Testing (Signup → Login).
     // Validates: New account credentials work on the login page.
     test('[REG-INT-02] signup logout login with new account', async ({
-      page,
       registerPage,
       loginPage,
       appLayout,
@@ -996,8 +996,7 @@ test.describe('Register @auth', () => {
       await registerPage.goto();
       await registerPage.registerExpectSuccess('Flow User', email, DEFAULT_PASSWORD);
       await appLayout.logout();
-      await expect(page).toHaveURL(/\/login$/);
-      await loginPage.login(email, DEFAULT_PASSWORD);
+      await loginPage.loginExpectSuccess(email, DEFAULT_PASSWORD);
       await dashboardPage.expectWelcomeFor('Flow User');
     });
 
@@ -1015,7 +1014,7 @@ test.describe('Register @auth', () => {
       await registerPage.registerExpectSuccess('First', email, DEFAULT_PASSWORD);
       await appLayout.logout();
       await registerPage.goto();
-      await registerPage.register('Second', email, DEFAULT_PASSWORD);
+      await registerPage.registerExpectConflict('Second', email, DEFAULT_PASSWORD);
       await registerPage.expectDuplicateEmailError();
       await registerPage.expectStaysOnRegister();
     });

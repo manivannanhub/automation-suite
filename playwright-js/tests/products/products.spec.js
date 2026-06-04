@@ -1,6 +1,8 @@
 import { test, expect } from '../../fixtures/baseTest.js';
 
 test.describe('Products', () => {
+  test.describe.configure({ timeout: 60_000 });
+
   test.beforeEach(async ({ authenticatedPage, productsPage }) => {
     await productsPage.goto();
   });

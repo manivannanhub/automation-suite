@@ -53,6 +53,12 @@ export class LoginPage {
     await this.submit();
   }
 
+  /** Submit credentials and wait for dashboard redirect (happy path). */
+  async loginExpectSuccess(email, password) {
+    await this.login(email, password);
+    await this.page.waitForURL(/\/dashboard$/, { timeout: 20_000 });
+  }
+
   async submitWithEnterOnPassword() {
     await this.passwordInput().press('Enter');
   }

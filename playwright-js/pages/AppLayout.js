@@ -21,6 +21,7 @@ export class AppLayout {
 
   async goToTodos() {
     await this.page.getByRole('link', { name: 'Todos' }).click();
+    await this.page.waitForURL(/\/todos$/);
   }
 
   async logout() {

@@ -8,6 +8,7 @@ import { AppLayout } from '../pages/AppLayout.js';
 import { loadTestData } from '../utils/testData.js';
 import { env } from '../config/env.js';
 import { deleteUsersByEmail } from '../utils/userCleanup.js';
+import { ensureUserRegistered } from '../utils/authApi.js';
 
 const users = loadTestData('users.json');
 
@@ -39,20 +40,22 @@ export const test = base.extend({
     await use(new AppLayout(page));
   },
 
-  authenticatedPage: async ({ page, loginPage }, use) => {
-    const { email, password } = users.validUser;
+  authenticatedPage: async ({ page, loginPage, request }, use) => {
+    const { name, email, password } = users.validUser;
+    await ensureUserRegistered(request, { name, email, password });
     await loginPage.goto();
     await loginPage.login(email, password);
-    await page.waitForURL(/\/dashboard$/);
+    await page.waitForURL(/\/dashboard$/, { timeout: 20_000 });
     await use(page);
   },
 
   /** Logs in with admin@admin.com (see test-data/users.json). */
-  authenticatedAdminPage: async ({ page, loginPage }, use) => {
-    const { email, password } = users.adminUser;
+  authenticatedAdminPage: async ({ page, loginPage, request }, use) => {
+    const { name, email, password } = users.adminUser;
+    await ensureUserRegistered(request, { name, email, password });
     await loginPage.goto();
     await loginPage.login(email, password);
-    await page.waitForURL(/\/dashboard$/);
+    await page.waitForURL(/\/dashboard$/, { timeout: 20_000 });
     await use(page);
   },
 

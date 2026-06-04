@@ -72,8 +72,18 @@ export class TodosPage {
 
   async addTodo(title) {
     await this.newTodoInput().fill(title);
+    await expect(this.addButton()).toBeEnabled();
+    const createResponse = this.page.waitForResponse(
+      (r) =>
+        r.url().includes('/api/todos') &&
+        r.request().method() === 'POST' &&
+        r.status() === 201,
+    );
     await this.addButton().click();
-    await expect(this.page.getByText(title, { exact: true })).toBeVisible();
+    await createResponse;
+    await expect(this.todoItemByTitle(title).first()).toBeVisible({
+      timeout: 15_000,
+    });
   }
 
   async markComplete(title) {

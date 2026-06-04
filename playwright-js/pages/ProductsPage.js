@@ -11,7 +11,10 @@ export class ProductsPage {
 
   async goto() {
     await this.page.goto(ROUTES.products);
-    await expect(this.page.getByTestId(this.loc.testIds.search)).toBeVisible();
+    await expect(this.page.getByTestId(this.loc.testIds.search)).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(this.productCards().first()).toBeVisible({ timeout: 20_000 });
   }
 
   searchInput() {

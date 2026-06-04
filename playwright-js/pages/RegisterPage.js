@@ -137,6 +137,17 @@ export class RegisterPage {
     await this.submit();
   }
 
+  /** Submit signup and wait for a failed register API response (e.g. duplicate email). */
+  async registerExpectConflict(name, email, password) {
+    await this.fillForm(name, email, password);
+    const responsePromise = this.page.waitForResponse(
+      (r) => REGISTER_API.test(r.url()) && r.request().method() === 'POST',
+    );
+    await this.submit();
+    const response = await responsePromise;
+    expect([400, 409]).toContain(response.status());
+  }
+
   async goToLogin() {
     await this.page.getByTestId(this.loc.testIds.loginLink).click();
   }
