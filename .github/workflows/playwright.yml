@@ -22,18 +22,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ── 2. Validate required secrets ──────────────────────────
-      # Fail fast if secrets are not configured in GitHub repo settings
-      - name: Validate required secrets
-        run: |
-          [ -z "$MONGODB_URI" ] && echo "❌ MONGODB_URI not set" && exit 1
-          [ -z "$JWT_SECRET"  ] && echo "❌ JWT_SECRET not set"  && exit 1
-          echo "✅ All required secrets present"
-        env:
-          MONGODB_URI: ${{ secrets.MONGODB_URI }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-
-      # ── 3. Setup Node.js ──────────────────────────────────────
+      # ── 2. Setup Node.js ──────────────────────────────────────
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -43,7 +32,7 @@ jobs:
             command-center/package-lock.json
             playwright-js/package-lock.json
 
-      # ── 4. Cache Playwright browsers ──────────────────────────
+      # ── 3. Cache Playwright browsers ──────────────────────────
       # Saves ~1 min on repeat runs by caching downloaded browsers
       - name: Cache Playwright browsers
         uses: actions/cache@v4
@@ -54,29 +43,28 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-playwright-
 
-      # ── 5. Install app dependencies ───────────────────────────
+      # ── 4. Install app dependencies ───────────────────────────
       - name: Install app dependencies
         working-directory: command-center
         run: npm ci
 
-      # ── 6. Build the frontend ─────────────────────────────────
+      # ── 5. Build the frontend ─────────────────────────────────
       - name: Build frontend
         working-directory: command-center
         run: npm run build
 
-      # ── 7. Start the application in background ────────────────
-      # nohup keeps it running after the step ends
-      # server.log captures stdout and stderr for debugging
+      # ── 6. Start the application in background ────────────────
+      # App uses in-memory storage — no DB or JWT secrets needed.
+      # nohup keeps it running after the step ends.
+      # server.log captures stdout and stderr for debugging.
       - name: Start application
         working-directory: command-center
         run: nohup npm start > server.log 2>&1 &
         env:
           NODE_ENV: production
           PORT: 3005
-          MONGODB_URI: ${{ secrets.MONGODB_URI }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
 
-      # ── 8. Wait for app to be ready ───────────────────────────
+      # ── 7. Wait for app to be ready ───────────────────────────
       # Polls every 2 seconds up to 80 seconds (40 attempts)
       # Falls back to checking root URL if /api/healthz not available
       - name: Wait for app to be ready
@@ -100,14 +88,11 @@ jobs:
           cat command-center/server.log
           exit 1
 
-      # ── 9. Seed test users ────────────────────────────────────
-      # Registers users needed by login and dashboard tests.
-      # Passwords are stored in GitHub Secrets — not hardcoded here.
-      # 409 (duplicate) is safe to ignore on re-runs.
+      # ── 8. Seed test users ────────────────────────────────────
+      # App uses in-memory DB — wiped on every restart.
+      # These users must be created before tests run.
+      # 409 = already exists, safe to ignore on re-runs.
       - name: Seed test users for login and dashboard tests
-        env:
-          TEST_USER_PASS: ${{ secrets.TEST_USER_PASS }}
-          ADMIN_PASS: ${{ secrets.ADMIN_PASS }}
         run: |
           seed_user() {
             local NAME="$1"
@@ -142,22 +127,22 @@ jobs:
             fi
           }
 
-          seed_user "Test User" "testuser@test.com" "$TEST_USER_PASS"
-          seed_user "Admin"     "admin@admin.com"   "$ADMIN_PASS"
+          seed_user "Test User" "testuser@test.com" "Password123"
+          seed_user "Admin"     "admin@admin.com"   "Admin123!"
 
-      # ── 10. Install Playwright dependencies ───────────────────
+      # ── 9. Install Playwright dependencies ────────────────────
       - name: Install Playwright dependencies
         working-directory: playwright-js
         run: npm ci
 
-      # ── 11. Install Playwright browsers ───────────────────────
+      # ── 10. Install Playwright browsers ───────────────────────
       # Skipped if browser cache hit — only installs chromium to keep CI fast
       - name: Install Playwright browsers
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         working-directory: playwright-js
         run: npx playwright install --with-deps chromium
 
-      # ── 12. Run Playwright tests ──────────────────────────────
+      # ── 11. Run Playwright tests ──────────────────────────────
       # line reporter = clean terminal output
       # html reporter = downloadable report artifact
       - name: Run Playwright tests
@@ -166,7 +151,7 @@ jobs:
         env:
           CI: true
 
-      # ── 13. Upload HTML test report ───────────────────────────
+      # ── 12. Upload HTML test report ───────────────────────────
       # Download from GitHub Actions > Artifacts after the run
       - name: Upload Playwright HTML report
         if: ${{ !cancelled() }}
@@ -176,7 +161,7 @@ jobs:
           path: playwright-js/reports/html
           retention-days: 7
 
-      # ── 14. Upload raw test results ───────────────────────────
+      # ── 13. Upload raw test results ───────────────────────────
       # Screenshots, videos and traces of failed tests
       - name: Upload test results
         if: ${{ !cancelled() }}
@@ -186,7 +171,7 @@ jobs:
           path: playwright-js/reports/test-results
           retention-days: 7
 
-      # ── 15. Upload server log on failure ──────────────────────
+      # ── 14. Upload server log on failure ──────────────────────
       # Only runs when something fails — helps debug app startup issues
       - name: Upload server log on failure
         if: failure()
@@ -196,7 +181,7 @@ jobs:
           path: command-center/server.log
           retention-days: 3
 
-      # ── 16. Notify on nightly failure ─────────────────────────
+      # ── 15. Notify on nightly failure ─────────────────────────
       # Sends a Slack alert if the scheduled nightly run fails.
       # Set SLACK_WEBHOOK in GitHub repo Settings > Secrets.
       - name: Notify on nightly failure
