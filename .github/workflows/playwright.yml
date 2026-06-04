@@ -13,6 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # ── JOB 1: Run all tests ──────────────────────────────────────
   e2e-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -33,7 +34,6 @@ jobs:
             playwright-js/package-lock.json
 
       # ── 3. Cache Playwright browsers ──────────────────────────
-      # Saves ~1 min on repeat runs by caching downloaded browsers
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         id: playwright-cache
@@ -51,22 +51,17 @@ jobs:
       # ── 5. Build the frontend ─────────────────────────────────
       - name: Build frontend
         working-directory: command-center
-        run: npm run build
+        run: npm install && npm --workspace @workspace/app run build
 
       # ── 6. Start the application in background ────────────────
-      # App uses in-memory storage — no DB or JWT secrets needed.
-      # nohup keeps it running after the step ends.
-      # server.log captures stdout and stderr for debugging.
       - name: Start application
         working-directory: command-center
-        run: nohup npm start > server.log 2>&1 &
+        run: nohup node server.js > server.log 2>&1 &
         env:
           NODE_ENV: production
           PORT: 3005
 
       # ── 7. Wait for app to be ready ───────────────────────────
-      # Polls every 2 seconds up to 80 seconds (40 attempts)
-      # Falls back to checking root URL if /api/healthz not available
       - name: Wait for app to be ready
         run: |
           echo "Waiting for app to start on port 3005..."
@@ -84,14 +79,11 @@ jobs:
             sleep 2
           done
           echo "❌ App did not start within 80 seconds"
-          echo "--- Server log ---"
           cat command-center/server.log
           exit 1
 
       # ── 8. Seed test users ────────────────────────────────────
-      # App uses in-memory DB — wiped on every restart.
-      # Credentials must match playwright-js/test-data/users.json exactly.
-      # 409 = already exists, safe to ignore on re-runs.
+      # Credentials match playwright-js/test-data/users.json exactly
       - name: Seed test users for login and dashboard tests
         run: |
           seed_user() {
@@ -136,16 +128,12 @@ jobs:
         run: npm ci
 
       # ── 10. Install Playwright browsers ───────────────────────
-      # Skipped if browser cache hit — only installs chromium to keep CI fast
       - name: Install Playwright browsers
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         working-directory: playwright-js
         run: npx playwright install --with-deps chromium
 
       # ── 11. Run Playwright tests ──────────────────────────────
-      # BASE_URL tells the fixture where the app is running in CI.
-      # line reporter = clean terminal output
-      # html reporter = downloadable report artifact
       - name: Run Playwright tests
         working-directory: playwright-js
         run: npx playwright test --reporter=html,line
@@ -154,7 +142,6 @@ jobs:
           BASE_URL: http://localhost:3005
 
       # ── 12. Upload HTML test report ───────────────────────────
-      # Download from GitHub Actions > Artifacts after the run
       - name: Upload Playwright HTML report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
@@ -164,7 +151,6 @@ jobs:
           retention-days: 7
 
       # ── 13. Upload raw test results ───────────────────────────
-      # Screenshots, videos and traces of failed tests
       - name: Upload test results
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
@@ -174,7 +160,6 @@ jobs:
           retention-days: 7
 
       # ── 14. Upload server log on failure ──────────────────────
-      # Only runs when something fails — helps debug app startup issues
       - name: Upload server log on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -184,11 +169,31 @@ jobs:
           retention-days: 3
 
       # ── 15. Notify on nightly failure ─────────────────────────
-      # Sends a Slack alert if the scheduled nightly run fails.
-      # Set SLACK_WEBHOOK in GitHub repo Settings > Secrets.
       - name: Notify on nightly failure
         if: failure() && github.event_name == 'schedule'
         run: |
           curl -X POST ${{ secrets.SLACK_WEBHOOK }} \
             -H 'Content-type: application/json' \
             -d "{\"text\":\"❌ Nightly Playwright run failed: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}"
+
+  # ── JOB 2: Deploy to Render (only if tests pass) ──────────────
+  deploy:
+    needs: e2e-tests
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      # ── 1. Trigger Render deploy ───────────────────────────────
+      - name: Deploy to Render
+        run: |
+          echo "🚀 Triggering deploy to Render..."
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}")
+          echo "Render response: $RESPONSE"
+          if [ "$RESPONSE" = "200" ] || [ "$RESPONSE" = "201" ]; then
+            echo "✅ Deploy triggered successfully"
+            echo "🔗 ${{ secrets.RENDER_APP_URL }}"
+          else
+            echo "❌ Deploy failed — HTTP $RESPONSE"
+            exit 1
+          fi
