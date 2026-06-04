@@ -182,14 +182,9 @@ test.describe('Todos @todos', () => {
   todosSuite('Error messages @error', () => {
     // Purpose: Empty list shows friendly empty-state copy.
     // Technique: Error Message Validation (empty state).
-    test('[TOD-ERR-01] empty state message when no todos', async ({
-      todosPage,
-      page,
-    }) => {
-      const items = page.locator('[data-testid^="todo-item-"]');
-      if ((await items.count()) === 0) {
-        await todosPage.expectEmptyState();
-      }
+    test('[TOD-ERR-01] empty state message when no todos', async ({ todosPage }) => {
+      await todosPage.clearTodos();
+      await todosPage.expectEmptyState();
     });
   });
 

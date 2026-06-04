@@ -1,6 +1,7 @@
 import { expect } from '@playwright/test';
 import { todosLocators } from '../locators/todos.locators.js';
 import { ROUTES } from '../utils/constants.js';
+import { env } from '../config/env.js';
 
 export class TodosPage {
   /** @param {import('@playwright/test').Page} page */
@@ -14,6 +15,18 @@ export class TodosPage {
     await expect(
       this.page.getByRole('heading', { name: this.loc.roles.heading }),
     ).toBeVisible();
+    await this.waitForListLoaded();
+  }
+
+  /**
+   * Wait until the list finished loading (empty-state copy or todo rows — not skeleton placeholders).
+   */
+  async waitForListLoaded() {
+    const items = this.page.locator(`[data-testid^="${this.loc.testIds.itemPrefix}"]`);
+    const empty = this.page.getByText(this.loc.text.emptyState);
+    await expect
+      .poll(async () => (await items.count()) > 0 || (await empty.isVisible()))
+      .toBe(true);
   }
 
   newTodoInput() {
@@ -84,6 +97,24 @@ export class TodosPage {
     await this.todoItemByTitle(title).hover();
     await this.deleteButton(id).click();
     await expect(this.todoItemByTitle(title)).not.toBeVisible();
+  }
+
+  /** Delete every todo for the current session via API, then reload the list. */
+  async clearTodos() {
+    const listRes = await this.page.request.get(`${env.baseURL}/api/todos`);
+    expect(listRes.ok()).toBeTruthy();
+    const todos = await listRes.json();
+    for (const todo of todos) {
+      const delRes = await this.page.request.delete(
+        `${env.baseURL}/api/todos/${todo.id}`,
+      );
+      expect(delRes.ok()).toBeTruthy();
+    }
+    await this.page.reload();
+    await expect(
+      this.page.getByRole('heading', { name: this.loc.roles.heading }),
+    ).toBeVisible();
+    await this.waitForListLoaded();
   }
 
   async expectEmptyState() {
