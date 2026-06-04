@@ -732,7 +732,7 @@ test.describe('Register @auth', () => {
   // ─── Usability @usability ──────────────────────────────────────────────────
   uiSuite('Usability @usability', () => {
     // Purpose: Let users switch to login without creating an account.
-    // Technique: Usability Testing.
+    // Technique: Usability Testing. Test
     // Validates: Sign-in path is one click away.
     test('[REG-USE-01] user can navigate to login without registering', async ({
       page,
