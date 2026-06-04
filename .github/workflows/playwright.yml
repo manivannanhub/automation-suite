@@ -90,7 +90,7 @@ jobs:
 
       # ── 8. Seed test users ────────────────────────────────────
       # App uses in-memory DB — wiped on every restart.
-      # These users must be created before tests run.
+      # Credentials must match playwright-js/test-data/users.json exactly.
       # 409 = already exists, safe to ignore on re-runs.
       - name: Seed test users for login and dashboard tests
         run: |
@@ -128,7 +128,7 @@ jobs:
           }
 
           seed_user "Test User" "testuser@test.com" "Password123"
-          seed_user "Admin"     "admin@admin.com"   "Admin123!"
+          seed_user "Admin"     "admin@admin.com"   "admin123"
 
       # ── 9. Install Playwright dependencies ────────────────────
       - name: Install Playwright dependencies
@@ -143,6 +143,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       # ── 11. Run Playwright tests ──────────────────────────────
+      # BASE_URL tells the fixture where the app is running in CI.
       # line reporter = clean terminal output
       # html reporter = downloadable report artifact
       - name: Run Playwright tests
@@ -150,6 +151,7 @@ jobs:
         run: npx playwright test --reporter=html,line
         env:
           CI: true
+          BASE_URL: http://localhost:3005
 
       # ── 12. Upload HTML test report ───────────────────────────
       # Download from GitHub Actions > Artifacts after the run
