@@ -6,8 +6,11 @@ on:
   pull_request:
     branches: [ main ]
   schedule:
-    # Nightly run at 2am UTC
     - cron: '0 2 * * *'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   e2e-tests:
@@ -19,17 +22,28 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # ── 2. Setup Node.js ──────────────────────────────────────
+      # ── 2. Validate required secrets ──────────────────────────
+      # Fail fast if secrets are not configured in GitHub repo settings
+      - name: Validate required secrets
+        run: |
+          [ -z "$MONGODB_URI" ] && echo "❌ MONGODB_URI not set" && exit 1
+          [ -z "$JWT_SECRET"  ] && echo "❌ JWT_SECRET not set"  && exit 1
+          echo "✅ All required secrets present"
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+
+      # ── 3. Setup Node.js ──────────────────────────────────────
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '20'
           cache: 'npm'
           cache-dependency-path: |
             command-center/package-lock.json
             playwright-js/package-lock.json
 
-      # ── 3. Cache Playwright browsers ──────────────────────────
+      # ── 4. Cache Playwright browsers ──────────────────────────
       # Saves ~1 min on repeat runs by caching downloaded browsers
       - name: Cache Playwright browsers
         uses: actions/cache@v4
@@ -40,42 +54,39 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-playwright-
 
-      # ── 4. Install app dependencies ───────────────────────────
+      # ── 5. Install app dependencies ───────────────────────────
       - name: Install app dependencies
         working-directory: command-center
         run: npm ci
 
-      # ── 5. Build the frontend ─────────────────────────────────
+      # ── 6. Build the frontend ─────────────────────────────────
       - name: Build frontend
         working-directory: command-center
         run: npm run build
 
-      # ── 6. Start the application in background ────────────────
+      # ── 7. Start the application in background ────────────────
       # nohup keeps it running after the step ends
-      # server.log captures all output for debugging
+      # server.log captures stdout and stderr for debugging
       - name: Start application
         working-directory: command-center
         run: nohup npm start > server.log 2>&1 &
         env:
           NODE_ENV: production
           PORT: 3005
-          # Add your secrets here — set them in GitHub repo Settings > Secrets
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
 
-      # ── 7. Wait for app to be ready ───────────────────────────
+      # ── 8. Wait for app to be ready ───────────────────────────
       # Polls every 2 seconds up to 80 seconds (40 attempts)
       # Falls back to checking root URL if /api/healthz not available
       - name: Wait for app to be ready
         run: |
           echo "Waiting for app to start on port 3005..."
           for i in {1..40}; do
-            # Try healthz endpoint first
             if curl -s http://localhost:3005/api/healthz | grep -q 'ok'; then
               echo "✅ App is up via /api/healthz!"
               exit 0
             fi
-            # Fallback: check if any 200/301/302 response on root
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3005 || echo "000")
             if [ "$STATUS" = "200" ] || [ "$STATUS" = "301" ] || [ "$STATUS" = "302" ]; then
               echo "✅ App is up! HTTP status: $STATUS"
@@ -84,82 +95,98 @@ jobs:
             echo "Attempt $i/40 — HTTP $STATUS — retrying in 2s..."
             sleep 2
           done
-          echo "❌ App did not start in time after 80 seconds"
+          echo "❌ App did not start within 80 seconds"
           echo "--- Server log ---"
           cat command-center/server.log
           exit 1
 
-      # ── 8. Seed test user for login tests ─────────────────────
-      # Login tests need a user that already exists in the database.
-      # Signup tests create their own users, but login tests depend
-      # on this pre-seeded account: testuser@test.com / Password123
-      - name: Seed test user for login tests
+      # ── 9. Seed test users ────────────────────────────────────
+      # Registers users needed by login and dashboard tests.
+      # Passwords are stored in GitHub Secrets — not hardcoded here.
+      # 409 (duplicate) is safe to ignore on re-runs.
+      - name: Seed test users for login and dashboard tests
+        env:
+          TEST_USER_PASS: ${{ secrets.TEST_USER_PASS }}
+          ADMIN_PASS: ${{ secrets.ADMIN_PASS }}
         run: |
-          echo "=== Registering test user ==="
-          RESPONSE=$(curl -s -X POST http://localhost:3005/api/auth/register \
-            -H "Content-Type: application/json" \
-            -d '{"name":"Test User","email":"testuser@test.com","password":"Password123"}')
-          echo "Register response: $RESPONSE"
+          seed_user() {
+            local NAME="$1"
+            local EMAIL="$2"
+            local PASS="$3"
 
-          echo "=== Verifying login works ==="
-          LOGIN=$(curl -s -X POST http://localhost:3005/api/auth/login \
-            -H "Content-Type: application/json" \
-            -d '{"email":"testuser@test.com","password":"Password123"}')
-          echo "Login response: $LOGIN"
+            echo "=== Registering $EMAIL ==="
+            REGISTER=$(curl -s -o /dev/null -w "%{http_code}" \
+              -X POST http://localhost:3005/api/auth/register \
+              -H "Content-Type: application/json" \
+              -d "{\"name\":\"$NAME\",\"email\":\"$EMAIL\",\"password\":\"$PASS\"}")
+            echo "Register HTTP status: $REGISTER"
 
-          # Fail fast if login doesn't work — no point running tests
-          if echo "$LOGIN" | grep -q 'token\|user'; then
-            echo "✅ Test user seeded and login verified successfully"
-          else
-            echo "❌ Could not verify test user login — check register response above"
-            echo "--- Server log ---"
-            cat command-center/server.log
-            exit 1
-          fi
+            if [ "$REGISTER" != "201" ] && [ "$REGISTER" != "409" ]; then
+              echo "❌ Unexpected register response for $EMAIL: $REGISTER"
+              cat command-center/server.log
+              exit 1
+            fi
 
-      # ── 9. Install Playwright dependencies ────────────────────
+            echo "=== Verifying login for $EMAIL ==="
+            LOGIN=$(curl -s -X POST http://localhost:3005/api/auth/login \
+              -H "Content-Type: application/json" \
+              -d "{\"email\":\"$EMAIL\",\"password\":\"$PASS\"}")
+
+            if echo "$LOGIN" | grep -q 'user'; then
+              echo "✅ $EMAIL ready"
+            else
+              echo "❌ Login failed for $EMAIL"
+              echo "Response: $LOGIN"
+              cat command-center/server.log
+              exit 1
+            fi
+          }
+
+          seed_user "Test User" "testuser@test.com" "$TEST_USER_PASS"
+          seed_user "Admin"     "admin@admin.com"   "$ADMIN_PASS"
+
+      # ── 10. Install Playwright dependencies ───────────────────
       - name: Install Playwright dependencies
         working-directory: playwright-js
         run: npm ci
 
-      # ── 10. Install Playwright browsers ───────────────────────
-      # --with-deps installs required OS libraries (fonts, codecs etc)
-      # Only installs chromium to keep CI fast — add firefox/webkit if needed
+      # ── 11. Install Playwright browsers ───────────────────────
+      # Skipped if browser cache hit — only installs chromium to keep CI fast
       - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         working-directory: playwright-js
         run: npx playwright install --with-deps chromium
 
-      # ── 11. Run Playwright tests ──────────────────────────────
+      # ── 12. Run Playwright tests ──────────────────────────────
       # line reporter = clean terminal output
-      # html reporter = downloadable HTML report as artifact
+      # html reporter = downloadable report artifact
       - name: Run Playwright tests
         working-directory: playwright-js
         run: npx playwright test --reporter=html,line
         env:
           CI: true
 
-      # ── 12. Upload HTML test report ───────────────────────────
+      # ── 13. Upload HTML test report ───────────────────────────
       # Download from GitHub Actions > Artifacts after the run
-      # Available for 7 days
       - name: Upload Playwright HTML report
-        if: always()
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
           path: playwright-js/reports/html
           retention-days: 7
 
-      # ── 13. Upload raw test results ───────────────────────────
-      # Contains screenshots, videos and traces of failed tests
+      # ── 14. Upload raw test results ───────────────────────────
+      # Screenshots, videos and traces of failed tests
       - name: Upload test results
-        if: always()
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: test-results
           path: playwright-js/reports/test-results
           retention-days: 7
 
-      # ── 14. Upload server log on failure ──────────────────────
+      # ── 15. Upload server log on failure ──────────────────────
       # Only runs when something fails — helps debug app startup issues
       - name: Upload server log on failure
         if: failure()
@@ -168,3 +195,13 @@ jobs:
           name: server-log
           path: command-center/server.log
           retention-days: 3
+
+      # ── 16. Notify on nightly failure ─────────────────────────
+      # Sends a Slack alert if the scheduled nightly run fails.
+      # Set SLACK_WEBHOOK in GitHub repo Settings > Secrets.
+      - name: Notify on nightly failure
+        if: failure() && github.event_name == 'schedule'
+        run: |
+          curl -X POST ${{ secrets.SLACK_WEBHOOK }} \
+            -H 'Content-type: application/json' \
+            -d "{\"text\":\"❌ Nightly Playwright run failed: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}"
