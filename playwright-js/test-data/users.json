@@ -1,4 +1,9 @@
 {
+  "adminUser": {
+    "name": "Admin",
+    "email": "admin@admin.com",
+    "password": "admin123"
+  },
   "validUser": {
     "name": "Test User",
     "email": "testuser@test.com",

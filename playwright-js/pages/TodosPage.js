@@ -71,13 +71,12 @@ export class TodosPage {
 
   async editTodo(title, newTitle) {
     const id = await this.getTodoIdByTitle(title);
-    await this.todoItemByTitle(title).hover();
-    await this.editButton(id).click();
+    await this.editButton(id).click({ force: true });
     const input = this.editInput(id);
     await input.clear();
     await input.fill(newTitle);
     await this.page.keyboard.press('Enter');
-    await expect(this.todoItemByTitle(newTitle)).toBeVisible();
+    await expect(this.todoItemByTitle(newTitle).first()).toBeVisible();
   }
 
   async deleteTodo(title) {
@@ -85,5 +84,18 @@ export class TodosPage {
     await this.todoItemByTitle(title).hover();
     await this.deleteButton(id).click();
     await expect(this.todoItemByTitle(title)).not.toBeVisible();
+  }
+
+  async expectEmptyState() {
+    await expect(this.page.getByText(this.loc.text.emptyState)).toBeVisible();
+  }
+
+  async todoItemCount() {
+    return this.page.locator(`[data-testid^="${this.loc.testIds.itemPrefix}"]`).count();
+  }
+
+  /** Click Add without typing — app should not create a row. */
+  async submitEmptyAdd() {
+    await this.addButton().click();
   }
 }

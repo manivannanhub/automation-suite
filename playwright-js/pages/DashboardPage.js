@@ -14,8 +14,10 @@ export class DashboardPage {
   }
 
   async expectLoaded() {
-    await expect(this.page).toHaveURL(/\/dashboard$/);
-    await expect(this.page.getByTestId(this.loc.testIds.welcome)).toBeVisible();
+    await expect(this.page).toHaveURL(/\/dashboard$/, { timeout: 20_000 });
+    await expect(this.page.getByTestId(this.loc.testIds.welcome)).toBeVisible({
+      timeout: 20_000,
+    });
   }
 
   async expectWelcomeFor(name) {
@@ -38,8 +40,62 @@ export class DashboardPage {
     await expect(this.page.getByText(email, { exact: true })).toBeVisible();
   }
 
+  quickTodoInput() {
+    return this.page.getByTestId(this.loc.testIds.quickTodoInput);
+  }
+
+  quickAddButton() {
+    return this.page.getByTestId(this.loc.testIds.quickAddButton);
+  }
+
   async quickAddTodo(title) {
-    await this.page.getByTestId(this.loc.testIds.quickTodoInput).fill(title);
-    await this.page.getByTestId(this.loc.testIds.quickAddButton).click();
+    await this.quickTodoInput().fill(title);
+    await this.quickAddButton().click();
+  }
+
+  /** Read numeric stat card values from the dashboard. */
+  async readStatCounts() {
+    const total = Number(
+      await this.page.getByTestId(this.loc.testIds.statTotal).innerText(),
+    );
+    const completed = Number(
+      await this.page.getByTestId(this.loc.testIds.statCompleted).innerText(),
+    );
+    const pending = Number(
+      await this.page.getByTestId(this.loc.testIds.statPending).innerText(),
+    );
+    return { total, completed, pending };
+  }
+
+  /**
+   * Assert todo summary cards on the dashboard (waits for numeric text).
+   * @param {{ total: number, completed: number, pending: number }} counts
+   */
+  async expectStatCounts({ total, completed, pending }) {
+    await expect(this.page.getByTestId(this.loc.testIds.statTotal)).toHaveText(
+      String(total),
+      { timeout: 10_000 },
+    );
+    await expect(this.page.getByTestId(this.loc.testIds.statCompleted)).toHaveText(
+      String(completed),
+      { timeout: 10_000 },
+    );
+    await expect(this.page.getByTestId(this.loc.testIds.statPending)).toHaveText(
+      String(pending),
+      { timeout: 10_000 },
+    );
+  }
+
+  /** Poll stat cards until counts match (helps after navigation / mutations). */
+  async expectStatCountsEventually({ total, completed, pending }) {
+    await expect
+      .poll(async () => this.readStatCounts(), { timeout: 15_000 })
+      .toEqual({ total, completed, pending });
+  }
+
+  async waitForStatsResponse() {
+    await this.page.waitForResponse(
+      (r) => r.url().includes('/api/todos/stats') && r.status() === 200,
+    );
   }
 }

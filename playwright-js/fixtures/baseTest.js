@@ -47,6 +47,15 @@ export const test = base.extend({
     await use(page);
   },
 
+  /** Logs in with admin@admin.com (see test-data/users.json). */
+  authenticatedAdminPage: async ({ page, loginPage }, use) => {
+    const { email, password } = users.adminUser;
+    await loginPage.goto();
+    await loginPage.login(email, password);
+    await page.waitForURL(/\/dashboard$/);
+    await use(page);
+  },
+
   trackEmail: async ({}, use) => {
     await use((email) => {
       createdEmails.push(email.toLowerCase());
