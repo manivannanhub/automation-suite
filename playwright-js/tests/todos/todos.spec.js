@@ -11,8 +11,8 @@ import {
   configureDashboardTodosSuite,
 } from '../../fixtures/dashboardTodosTest.js';
 import { users } from '../../fixtures/baseTest.js';
-import { uniqueTitle } from '../../utils/helpers.js';
-import { loginUser } from '../../utils/authApi.js';
+import { uniqueEmail, uniqueTitle } from '../../utils/helpers.js';
+import { loginUser, registerUser } from '../../utils/authApi.js';
 import {
   listTodos,
   getTodoStats,
@@ -30,6 +30,7 @@ import {
 configureDashboardTodosSuite();
 
 const MIN_TITLE = 'Z';
+const TEST_PASSWORD = 'Password123';
 
 /** UI suites that open /todos before each test (admin session). */
 function todosSuite(title, fn) {
@@ -179,11 +180,27 @@ test.describe('Todos @todos', () => {
   });
 
   // ─── Error messages @error ──────────────────────────────────────────────────
-  todosSuite('Error messages @error', () => {
+  test.describe('Error messages @error', () => {
     // Purpose: Empty list shows friendly empty-state copy.
     // Technique: Error Message Validation (empty state).
-    test('[TOD-ERR-01] empty state message when no todos', async ({ todosPage }) => {
-      await todosPage.clearTodos();
+    // Isolated user — avoids racing clearTodos() on shared admin across workers.
+    test('[TOD-ERR-01] empty state message when no todos', async ({
+      request,
+      loginPage,
+      todosPage,
+      trackEmail,
+    }) => {
+      const email = uniqueEmail('err-empty');
+      trackEmail(email);
+      const res = await registerUser(request, {
+        name: 'Empty User',
+        email,
+        password: TEST_PASSWORD,
+      });
+      expect(res.status()).toBe(201);
+      await loginPage.goto();
+      await loginPage.login(email, TEST_PASSWORD);
+      await todosPage.goto();
       await todosPage.expectEmptyState();
     });
   });

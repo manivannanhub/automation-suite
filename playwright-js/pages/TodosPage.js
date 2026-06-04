@@ -118,7 +118,9 @@ export class TodosPage {
   }
 
   async expectEmptyState() {
-    await expect(this.page.getByText(this.loc.text.emptyState)).toBeVisible();
+    await expect(this.page.getByText(this.loc.text.emptyState)).toBeVisible({
+      timeout: 15_000,
+    });
   }
 
   async todoItemCount() {

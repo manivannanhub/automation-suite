@@ -93,6 +93,27 @@ export class DashboardPage {
       .toEqual({ total, completed, pending });
   }
 
+  /**
+   * Poll until stats increased by at least the given deltas (tolerates parallel admin mutations).
+   * @param {{ total: number, completed: number, pending: number }} before
+   * @param {{ total?: number, completed?: number, pending?: number }} delta
+   */
+  async expectStatCountsIncreasedBy(
+    before,
+    { total: totalDelta = 0, completed: completedDelta = 0, pending: pendingDelta = 0 },
+  ) {
+    await expect
+      .poll(async () => {
+        const after = await this.readStatCounts();
+        return (
+          after.total >= before.total + totalDelta &&
+          after.completed >= before.completed + completedDelta &&
+          after.pending >= before.pending + pendingDelta
+        );
+      }, { timeout: 15_000 })
+      .toBe(true);
+  }
+
   async waitForStatsResponse() {
     await this.page.waitForResponse(
       (r) => r.url().includes('/api/todos/stats') && r.status() === 200,

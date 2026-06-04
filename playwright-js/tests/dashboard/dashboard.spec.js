@@ -139,10 +139,9 @@ test.describe('Dashboard @dashboard', () => {
       const title = `${MIN_TASK_TITLE}${Date.now()}`;
       const before = await dashboardPage.readStatCounts();
       await dashboardPage.quickAddTodo(title);
-      await dashboardPage.expectStatCountsEventually({
-        total: before.total + 1,
-        completed: before.completed,
-        pending: before.pending + 1,
+      await dashboardPage.expectStatCountsIncreasedBy(before, {
+        total: 1,
+        pending: 1,
       });
       await appLayout.goToTodos();
       await expect(page.getByText(title, { exact: true })).toBeVisible();
@@ -158,10 +157,9 @@ test.describe('Dashboard @dashboard', () => {
     }) => {
       const before = await dashboardPage.readStatCounts();
       await dashboardPage.quickAddTodo(uniqueTitle('ep-valid'));
-      await dashboardPage.expectStatCountsEventually({
-        total: before.total + 1,
-        completed: before.completed,
-        pending: before.pending + 1,
+      await dashboardPage.expectStatCountsIncreasedBy(before, {
+        total: 1,
+        pending: 1,
       });
     });
 
